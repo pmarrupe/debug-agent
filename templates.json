@@ -1,0 +1,24 @@
+{
+  "templates": [
+    {
+      "id": "null-check-guard",
+      "description": "Add null checks with safe default or early return."
+    },
+    {
+      "id": "input-validation",
+      "description": "Validate inputs and return a 4xx error response."
+    },
+    {
+      "id": "retry-backoff",
+      "description": "Add retry with exponential backoff for idempotent calls."
+    },
+    {
+      "id": "timeout-tuning",
+      "description": "Adjust timeouts or pool sizes in configuration."
+    },
+    {
+      "id": "feature-flag",
+      "description": "Guard risky code path behind a feature flag."
+    }
+  ]
+}
