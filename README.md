@@ -15,7 +15,11 @@ pip install -r requirements.txt
 
 ## Run
 ```bash
-PYTHONPATH=src python src/main.py
+APPLY_TO_REPO=true \
+LLM_ENABLED=true \
+PR_ENABLED=true \
+OPENAI_API_KEY=your_key \
+PYTHONPATH=src python src/graph.py
 ```
 
 ## Config (env vars)
@@ -42,44 +46,4 @@ PYTHONPATH=src python src/main.py
 - `PR_BRANCH_PREFIX` (default: `agent-fix`)
 - `PR_REMOTE` (default: `origin`)
 - `PR_TITLE_PREFIX` (default: `agent`)
-
-## Example
-```bash
-ES_HOSTS=http://localhost:9200 \
-ES_INDEX_PATTERN=logs-auth-service-* \
-LOOKBACK_MINUTES=60 \
-PYTHONPATH=src python src/main.py
-```
-
-## LLM Summary (suggest-only)
-```bash
-LLM_ENABLED=true \
-OPENAI_API_KEY=your_key \
-PYTHONPATH=src python src/main.py
-```
-
-## Patch Proposal (suggest-only)
-Uses allowlisted templates from `templates.json`.
-
-## LangGraph Agent Loop (suggest-only)
-```bash
-LLM_ENABLED=true \
-OPENAI_API_KEY=your_key \
-PYTHONPATH=src python src/graph.py
-```
-
-Note: Only `report-*.json` and `decision-*.json` are written. Summary and proposal
-are generated in memory only.
-
-## Sandbox Patch Output
-When a decision is approved and the template is supported, a sandbox copy and diff
-are written to the `sandbox/` directory. The main codebase is not modified.
-
-## Test Gate
-If `APPLY_TO_REPO=true`, the patch is applied to the repo and tests run using
-`TEST_COMMAND`. The decision output includes the test result.
-
-## PR Creation
-If `PR_ENABLED=true`, the agent will create a branch, commit allowed files, push,
-and open a PR using `gh`. Requires GitHub CLI auth.
 
