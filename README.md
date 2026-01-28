@@ -15,7 +15,7 @@ pip install -r requirements.txt
 
 ## Run
 ```bash
-python main.py
+PYTHONPATH=src python src/main.py
 ```
 
 ## Config (env vars)
@@ -48,14 +48,14 @@ python main.py
 ES_HOSTS=http://localhost:9200 \
 ES_INDEX_PATTERN=logs-auth-service-* \
 LOOKBACK_MINUTES=60 \
-python main.py
+PYTHONPATH=src python src/main.py
 ```
 
 ## LLM Summary (suggest-only)
 ```bash
 LLM_ENABLED=true \
 OPENAI_API_KEY=your_key \
-python main.py
+PYTHONPATH=src python src/main.py
 ```
 
 ## Patch Proposal (suggest-only)
@@ -65,7 +65,7 @@ Uses allowlisted templates from `templates.json`.
 ```bash
 LLM_ENABLED=true \
 OPENAI_API_KEY=your_key \
-python graph.py
+PYTHONPATH=src python src/graph.py
 ```
 
 Note: Only `report-*.json` and `decision-*.json` are written. Summary and proposal

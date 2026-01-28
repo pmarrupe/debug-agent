@@ -1,0 +1,12 @@
+# virtualenv / caches
+.venv/
+__pycache__/
+*.pyc
+
+# local outputs
+output/
+sandbox/
+*.log
+
+# editor
+.vscode/
