@@ -3,13 +3,12 @@ import json
 import os
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
-
-from elasticsearch import Elasticsearch
+from datetime import datetime, timezone
 
 from config import Config
-from llm_summary import summarize_report
-from patch_proposal import propose_patch
+from llm_summary import summarize_report, write_summary
+from patch_proposal import propose_patch, write_proposal
+from trino_logs import fetch_logs_from_trino
 
 
 @dataclass
@@ -24,12 +23,6 @@ class Cluster:
 
 def iso_now():
     return datetime.now(timezone.utc).isoformat()
-
-
-def build_time_range(lookback_minutes):
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(minutes=lookback_minutes)
-    return start.isoformat(), end.isoformat()
 
 
 def parse_stack_signature(stack_trace, max_frames=3):
@@ -62,33 +55,6 @@ def cluster_key(doc):
     if signature:
         return f"{error_type}::{signature}"
     return f"{error_type}::{message[:120]}"
-
-
-def fetch_logs(es, index_pattern, start_ts, end_ts, size):
-    query = {
-        "query": {
-            "bool": {
-                "filter": [
-                    {"range": {"@timestamp": {"gte": start_ts, "lte": end_ts}}},
-                    {
-                        "bool": {
-                            "should": [
-                                {"exists": {"field": "error.type"}},
-                                {"exists": {"field": "error.stack_trace"}},
-                                {"term": {"log.level": "ERROR"}},
-                            ],
-                            "minimum_should_match": 1,
-                        }
-                    },
-                ]
-            }
-        },
-        "sort": [{"@timestamp": {"order": "desc"}}],
-        "size": size,
-    }
-    response = es.search(index=index_pattern, body=query)
-    hits = response.get("hits", {}).get("hits", [])
-    return [hit.get("_source", {}) for hit in hits]
 
 
 def build_clusters(docs):
@@ -137,22 +103,16 @@ def write_report(output_dir, report):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Auth service log analysis agent")
-    parser.add_argument("--es-hosts", default=",".join(Config.es_hosts))
-    parser.add_argument("--index-pattern", default=Config.index_pattern)
-    parser.add_argument("--lookback-minutes", type=int, default=Config.lookback_minutes)
-    parser.add_argument("--size", type=int, default=Config.query_size)
+    parser = argparse.ArgumentParser(description="Log analysis agent (Trino/SWH)")
     parser.add_argument("--output-dir", default=Config.output_dir)
     args = parser.parse_args()
 
-    es = Elasticsearch(args.es_hosts.split(","))
-    start_ts, end_ts = build_time_range(args.lookback_minutes)
-    docs = fetch_logs(es, args.index_pattern, start_ts, end_ts, args.size)
+    docs = fetch_logs_from_trino(Config)
     clusters = build_clusters(docs)
     report = summarize(docs, clusters)
     report_path = write_report(args.output_dir, report)
 
-    print(f"Fetched {len(docs)} events from {start_ts} to {end_ts}")
+    print(f"Fetched {len(docs)} events from Trino")
     print(f"Top clusters: {min(len(clusters), 10)}")
     print(f"Report written to {report_path}")
 
@@ -160,13 +120,15 @@ def main():
     if summary_error:
         print(f"LLM summary skipped: {summary_error}")
     else:
-        print("LLM summary generated (not written to file)")
+        summary_path = write_summary(Config.llm_output_dir, report, summary_text)
+        print(f"LLM summary written to {summary_path}")
 
     proposal_text, proposal_error = propose_patch(report, Config)
     if proposal_error:
         print(f"Patch proposal skipped: {proposal_error}")
     else:
-        print("Patch proposal generated (not written to file)")
+        proposal_path = write_proposal(Config.proposal_output_dir, proposal_text)
+        print(f"Patch proposal written to {proposal_path}")
 
 
 if __name__ == "__main__":

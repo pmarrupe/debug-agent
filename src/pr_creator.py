@@ -90,12 +90,12 @@ def create_pr_flow(config, decision, apply_result, test_result):
     if test_result.get("exit_code") not in (0, None):
         return {"created": False, "reason": "tests_failed"}
 
-    allowed = []
-    for path in (decision.get("target_files") or []):
-        if path.startswith("src/") or path.startswith("pom.xml"):
-            allowed.append(path)
-        else:
-            allowed.append(os.path.join("src", "main", "java", path))
+    # Collect target_files for PR description
+    target_files = []
+    for fix in (decision.get("approved_fixes") or []):
+        target_files.extend(fix.get("target_files") or [])
+    if not target_files:
+        target_files = decision.get("target_files") or []
 
     changed, err = _changed_files(config.target_repo_path)
     if err:
@@ -108,11 +108,16 @@ def create_pr_flow(config, decision, apply_result, test_result):
     if not ok:
         return {"created": False, "reason": err}
 
-    ok, err = _stage_allowed(config.target_repo_path, allowed)
+    # Stage the files that were actually changed by the apply step
+    ok, err = _stage_allowed(config.target_repo_path, changed)
     if not ok:
         return {"created": False, "reason": err}
 
-    commit_msg = f"{config.pr_title_prefix}: apply {decision.get('selected_template_id', 'patch')}"
+    approved = decision.get("approved_fixes") or []
+    template_ids = [f.get("selected_template_id") for f in approved if f.get("selected_template_id")]
+    commit_msg = f"{config.pr_title_prefix}: apply {len(approved)} fix(es)"
+    if template_ids:
+        commit_msg += f" ({', '.join(template_ids)})"
     ok, err = _commit(config.target_repo_path, commit_msg)
     if not ok:
         return {"created": False, "reason": err}
@@ -121,13 +126,8 @@ def create_pr_flow(config, decision, apply_result, test_result):
     if not ok:
         return {"created": False, "reason": err}
 
-    body = (
-        "## Summary\n"
-        f"- Template: {decision.get('selected_template_id')}\n"
-        f"- Targets: {', '.join(decision.get('target_files', []))}\n\n"
-        "## Test plan\n"
-        f"- {config.test_command}\n"
-    )
+    body_lines = ["## Summary", f"- Fixes: {len(approved)}", f"- Templates: {', '.join(template_ids or ['patch'])}", f"- Targets: {', '.join(target_files)}", "", "## Test plan", f"- {config.test_command}"]
+    body = "\n".join(body_lines)
     ok, out = _create_pr(config.target_repo_path, commit_msg, body)
     if not ok:
         return {"created": False, "reason": out}

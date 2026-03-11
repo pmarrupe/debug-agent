@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from openai import OpenAI
+from llm_client import get_llm_client
 
 
 def _now_suffix():
@@ -19,19 +19,22 @@ def _build_prompt(report, templates):
         {
             "role": "system",
             "content": (
-                "You are a debugging agent that proposes minimal code fixes. "
-                "Return JSON only. Use only the provided templates. "
-                "Do not include code diffs, only a patch plan."
+                "You are a debugging agent that proposes minimal code fixes. Return JSON only. "
+                "For the agent to APPLY a fix, each fix object MUST include one of: (1) selected_template_id + target_files, "
+                "or (2) patch_content (unified diff string), or (3) edits (array of file + old_string + new_string). "
+                "Without one of these, the agent will skip the fix. Always provide patch_content or edits when you can so the agent can apply your fix."
             ),
         },
         {
             "role": "user",
             "content": (
-                "Given this incident report and allowed templates, propose a "
-                "patch plan. Output JSON with fields: plan_summary, "
-                "selected_template_id, target_files, rationale, "
-                "risk (low|medium|high), confidence (low|medium|high), "
-                "tests. Keep target_files as a list of file paths.\n\n"
+                "Given this incident report, propose fixes. Output JSON with plan_summary and a 'fixes' array.\n\n"
+                "REQUIRED for each fix (the agent needs one of these to apply):\n"
+                "- selected_template_id (from the templates list) AND target_files (array of paths), OR\n"
+                "- patch_content (string): valid unified diff. Format: '--- a/src/main/java/.../File.java\\n+++ b/src/main/java/.../File.java\\n@@ -N,M +N,M @@\\n' then lines starting with space (context), - (remove), + (add). No trailing spaces on context lines; use \\n for newlines. Agent runs 'patch -p1'.\n"
+                "- edits (array): [ { \"file\": \"src/main/java/.../File.java\", \"old_string\": \"exact line(s) to find\", \"new_string\": \"replacement\" } ]. Path relative to repo. old_string must appear exactly once in the file.\n\n"
+                "Also include per fix: rationale (optional), risk (low|medium|high), confidence (low|medium|high), and optionally error_type or cluster_key.\n\n"
+                "You MUST provide patch_content or edits for every fix you want the agent to apply. Prefer 'edits' over patch_content when possible (edits are search/replace and less error-prone than unified diff). Template-only fixes work only for null-check-guard; for other fixes use patch_content or edits.\n\n"
                 f"Incident report:\n{json.dumps(report, indent=2)}\n\n"
                 f"Templates:\n{json.dumps(templates, indent=2)}"
             ),
@@ -42,20 +45,22 @@ def _build_prompt(report, templates):
 def propose_patch(report, config):
     if not config.llm_enabled:
         return None, "LLM disabled"
-    if config.llm_provider != "openai":
-        return None, f"Unsupported LLM provider: {config.llm_provider}"
-    if not config.openai_api_key:
-        return None, "Missing OPENAI_API_KEY"
+    try:
+        client = get_llm_client(config)
+    except ValueError as e:
+        return None, str(e)
 
     templates = _load_templates(config.template_path)
-    client = OpenAI(api_key=config.openai_api_key)
-    response = client.chat.completions.create(
-        model=config.llm_model,
-        messages=_build_prompt(report, templates),
-        temperature=0,
-    )
-    content = response.choices[0].message.content if response.choices else ""
-    return content, None
+    try:
+        response = client.chat.completions.create(
+            model=config.llm_model,
+            messages=_build_prompt(report, templates),
+            temperature=0,
+        )
+        content = response.choices[0].message.content if response.choices else ""
+        return content, None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
 
 
 def write_proposal(output_dir, proposal_text, error_message=None):

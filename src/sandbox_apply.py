@@ -51,7 +51,8 @@ def apply_null_check_guard(source_path, sandbox_dir):
         return None, "no_changes_applied"
 
     os.makedirs(sandbox_dir, exist_ok=True)
-    sandbox_path = os.path.join(sandbox_dir, "UserService.java")
+    base_name = os.path.basename(source_path)
+    sandbox_path = os.path.join(sandbox_dir, base_name)
     with open(sandbox_path, "w", encoding="utf-8") as handle:
         handle.write(updated)
 
@@ -66,3 +67,23 @@ def apply_null_check_guard(source_path, sandbox_dir):
         handle.writelines(diff_lines)
 
     return {"sandbox_path": sandbox_path, "diff_path": diff_path}, None
+
+
+def apply_input_validation_guard(source_path, sandbox_dir):
+    """Placeholder for input-validation template. Returns not_implemented until implemented."""
+    return None, "not_implemented"
+
+
+def apply_retry_backoff(source_path, sandbox_dir):
+    """Placeholder for retry-backoff template. Use LLM patch_content or edits to apply this fix."""
+    return None, "not_implemented"
+
+
+def apply_timeout_tuning(source_path, sandbox_dir):
+    """Placeholder for timeout-tuning template. Use LLM patch_content or edits to apply this fix."""
+    return None, "not_implemented"
+
+
+def apply_feature_flag(source_path, sandbox_dir):
+    """Placeholder for feature-flag template. Use LLM patch_content or edits to apply this fix."""
+    return None, "not_implemented"

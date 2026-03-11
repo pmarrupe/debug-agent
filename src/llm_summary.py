@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime, timezone
 
-from openai import OpenAI
+from llm_client import get_llm_client
 
 
 def _now_suffix():
@@ -36,19 +36,21 @@ def _build_prompt(report):
 def summarize_report(report, config):
     if not config.llm_enabled:
         return None, "LLM disabled"
-    if config.llm_provider != "openai":
-        return None, f"Unsupported LLM provider: {config.llm_provider}"
-    if not config.openai_api_key:
-        return None, "Missing OPENAI_API_KEY"
+    try:
+        client = get_llm_client(config)
+    except ValueError as e:
+        return None, str(e)
 
-    client = OpenAI(api_key=config.openai_api_key)
-    response = client.chat.completions.create(
-        model=config.llm_model,
-        messages=_build_prompt(report),
-        temperature=0,
-    )
-    content = response.choices[0].message.content if response.choices else ""
-    return content, None
+    try:
+        response = client.chat.completions.create(
+            model=config.llm_model,
+            messages=_build_prompt(report),
+            temperature=0,
+        )
+        content = response.choices[0].message.content if response.choices else ""
+        return content, None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
 
 
 def write_summary(output_dir, report, summary_text, error_message=None):
