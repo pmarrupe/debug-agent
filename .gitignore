@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 
+.idea
 # local outputs
 output/
 sandbox/
